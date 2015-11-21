@@ -17,16 +17,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 	var sp1	:	EEDWSubprocess?
 
 	func applicationDidFinishLaunching(aNotification: NSNotification) {
-		sp1	=	try! EEDWSubprocess.spawnWithExecutablePath("/bin/bash", arguments: ["/bin/bash", "-s"]);
-
-		sp1!.standardOutput().readabilityHandler	=	{ h in
-			print(NSString(data: h.availableData, encoding: NSUTF8StringEncoding)! as String)
-		}
-		sp1!.standardError().readabilityHandler	=	{ h in
-			print(NSString(data: h.availableData, encoding: NSUTF8StringEncoding)! as String)
-		}
-//		sp1!.standardInput().writeData(("echo AAA; ehco; echo `pwd`; sleep 2; exit;\n" as NSString).dataUsingEncoding(NSUTF8StringEncoding)!)
-		sp1!.standardInput().writeData(("source ~/.profile; cd ~/; rm -rf ./testproj3; cargo new --bin testproj3; cd testproj3; cargo build --verbose; exit;\n" as NSString).dataUsingEncoding(NSUTF8StringEncoding)!)
+		sp1	=	try! EEDWSubprocess.spawnWithExecutablePath("/bin/bash", arguments: ["/bin/bash", "-c", "echo AAA; sleep 2;"], environment: []);
 		print("...")
 
 		try! sp1!.waitUntilExit()

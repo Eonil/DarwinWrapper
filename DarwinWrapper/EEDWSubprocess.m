@@ -10,17 +10,15 @@
 #import <spawn.h>
 
 @implementation EEDWSubprocess {
-	int			_stdin_pipe[2];
-	int			_stdout_pipe[2];
-	int			_stderr_pipe[2];
 	pid_t			_subproc_pid;
 	NSFileHandle*		_subproc_stdin;
 	NSFileHandle*		_subproc_stdout;
 	NSFileHandle*		_subproc_stderr;
 }
-+ (instancetype)spawnWithExecutablePath:(NSString *)executablePath arguments:(NSArray<NSString *> *)arguments error:(NSError *__autoreleasing  _Nullable *)error {
++ (instancetype)spawnWithExecutablePath:(NSString *)executablePath arguments:(NSArray<NSString *> *)arguments environment:(NSArray<NSString *> *)environment error:(NSError *__autoreleasing *)error {
 	char const*	path1;
 	char const*	args1[arguments.count];
+	char const*	envs1[environment.count];
 	int		stdin_pipe[2];
 	int		stdout_pipe[2];
 	int		stderr_pipe[2];
@@ -31,58 +29,50 @@
 		char const*	arg1	=	arg.UTF8String;
 		args1[i]		=	arg1;
 	}
-
+	for (int i=0; i<environment.count; i++) {
+		NSString*	env	=	environment[i];
+		char const*	env1	=	env.UTF8String;
+		envs1[i]		=	env1;
+	}
 	pipe(stdin_pipe);
 	pipe(stdout_pipe);
 	pipe(stderr_pipe);
 
-	pid_t	pid	=	fork();
+	pid_t pid;
+	posix_spawn_file_actions_t file_actions;
+	posix_spawn_file_actions_init(&file_actions);
+	posix_spawn_file_actions_addclose(&file_actions, stdin_pipe[1]);
+	posix_spawn_file_actions_addclose(&file_actions, stdout_pipe[0]);
+	posix_spawn_file_actions_addclose(&file_actions, stderr_pipe[0]);
+	posix_spawn_file_actions_adddup2(&file_actions, stdin_pipe[0], STDIN_FILENO);
+	posix_spawn_file_actions_adddup2(&file_actions, stdout_pipe[1], STDOUT_FILENO);
+	posix_spawn_file_actions_adddup2(&file_actions, stderr_pipe[1], STDERR_FILENO);
+	posix_spawnattr_t attr;
+	posix_spawnattr_init(&attr);
+	int ret = posix_spawn(&pid, path1, &file_actions, &attr, (char *const*)args1, (char *const*)envs1);
+	posix_spawnattr_destroy(attr);
+	posix_spawn_file_actions_destroy(&file_actions);
 
-	if (pid == 0) {
-		// OK and we're in child process.
-		close(stdin_pipe[1]);
-		close(stdout_pipe[0]);
-		close(stderr_pipe[0]);
-		dup2(stdin_pipe[0], STDIN_FILENO);
-		dup2(stdout_pipe[1], STDOUT_FILENO);
-		dup2(stderr_pipe[1], STDERR_FILENO);
-
-		int	ret	=	execv(path1, (char * const *)args1);
-		NSAssert(ret == -1, @"If returned, the returned value must be -1.");
-
-		int		e	=	errno;
-		perror(NULL);
-		exit(e);
+	if (ret == 0) {
+		// OK.
+		close(stdin_pipe[0]);
+		close(stdout_pipe[1]);
+		close(stderr_pipe[1]);
+		EEDWSubprocess*	p	=	[[self alloc] init];
+		p->_subproc_pid		=	pid;
+		return		p;
 	}
-	if (pid == -1) {
-		// Error and we're in parent process.
-		int		e	=	errno;
-		char const*	s	=	strerror(e);
+	else {
+		// Error.
+		char const*	s	=	strerror(ret);
 		NSString*	s1	=	[[NSString alloc] initWithUTF8String:s];
-		NSError*	e1	=	[[NSError alloc] initWithDomain:NSPOSIXErrorDomain code:e userInfo:@{NSLocalizedDescriptionKey: s1}];
+		NSError*	e	=	[[NSError alloc] initWithDomain:NSPOSIXErrorDomain code:ret userInfo:@{NSLocalizedDescriptionKey: s1}];
 		if (error != NULL) {
-			*error			=	e1;
+			*error			=	e;
 		}
-		return	nil;
+		return		nil;
 	}
 
-	// OK and we're in parent process.
-	close(stdin_pipe[0]);
-	close(stdout_pipe[1]);
-	close(stderr_pipe[1]);
-
-	EEDWSubprocess*	p	=	[[EEDWSubprocess alloc] init];
-	p->_stdin_pipe[0]	=	stdin_pipe[0];
-	p->_stdin_pipe[1]	=	stdin_pipe[1];
-	p->_stdout_pipe[0]	=	stdout_pipe[0];
-	p->_stdout_pipe[1]	=	stdout_pipe[1];
-	p->_stderr_pipe[0]	=	stderr_pipe[0];
-	p->_stderr_pipe[1]	=	stderr_pipe[1];
-	p->_subproc_pid		=	pid;
-	p->_subproc_stdin	=	[[NSFileHandle alloc] initWithFileDescriptor:stdin_pipe[1]];
-	p->_subproc_stdout	=	[[NSFileHandle alloc] initWithFileDescriptor:stdout_pipe[0]];
-	p->_subproc_stderr	=	[[NSFileHandle alloc] initWithFileDescriptor:stderr_pipe[0]];
-	return	p;
 }
 - (NSFileHandle *)standardInput {
 	return	_subproc_stdin;
@@ -95,6 +85,7 @@
 }
 - (BOOL)waitUntilExitWithError:(NSError *__autoreleasing *)error {
 RESTART:
+
 	NSAssert(_subproc_pid > 0, @"Subprocess PID number to wait for must be larger than 0.");
 	int	options	=	0;
 	int	ret	=	waitpid(_subproc_pid, NULL, options);
