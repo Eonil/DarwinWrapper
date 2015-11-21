@@ -22,6 +22,9 @@
 	int		stdin_pipe[2];
 	int		stdout_pipe[2];
 	int		stderr_pipe[2];
+	NSFileHandle*	stdin_pipe_writing_handle;
+	NSFileHandle*	stdout_pipe_reading_handle;
+	NSFileHandle*	stderr_pipe_reading_handle;
 
 	path1	=	executablePath.UTF8String;
 	for (int i=0; i<arguments.count; i++) {
@@ -37,9 +40,13 @@
 	pipe(stdin_pipe);
 	pipe(stdout_pipe);
 	pipe(stderr_pipe);
+	stdin_pipe_writing_handle	=	[[NSFileHandle alloc] initWithFileDescriptor:stdin_pipe[1]];
+	stdout_pipe_reading_handle	=	[[NSFileHandle alloc] initWithFileDescriptor:stdout_pipe[0]];
+	stderr_pipe_reading_handle	=	[[NSFileHandle alloc] initWithFileDescriptor:stderr_pipe[0]];
 
-	pid_t pid;
-	posix_spawn_file_actions_t file_actions;
+	pid_t				pid;
+	posix_spawn_file_actions_t	file_actions;
+	posix_spawnattr_t		attr;
 	posix_spawn_file_actions_init(&file_actions);
 	posix_spawn_file_actions_addclose(&file_actions, stdin_pipe[1]);
 	posix_spawn_file_actions_addclose(&file_actions, stdout_pipe[0]);
@@ -47,9 +54,11 @@
 	posix_spawn_file_actions_adddup2(&file_actions, stdin_pipe[0], STDIN_FILENO);
 	posix_spawn_file_actions_adddup2(&file_actions, stdout_pipe[1], STDOUT_FILENO);
 	posix_spawn_file_actions_adddup2(&file_actions, stderr_pipe[1], STDERR_FILENO);
-	posix_spawnattr_t attr;
+	posix_spawn_file_actions_addclose(&file_actions, stdin_pipe[0]);
+	posix_spawn_file_actions_addclose(&file_actions, stdout_pipe[1]);
+	posix_spawn_file_actions_addclose(&file_actions, stderr_pipe[1]);
 	posix_spawnattr_init(&attr);
-	int ret = posix_spawn(&pid, path1, &file_actions, &attr, (char *const*)args1, (char *const*)envs1);
+	int ret = posix_spawnp(&pid, path1, &file_actions, &attr, (char *const*)args1, (char *const*)envs1);
 	posix_spawnattr_destroy(attr);
 	posix_spawn_file_actions_destroy(&file_actions);
 
@@ -60,6 +69,9 @@
 		close(stderr_pipe[1]);
 		EEDWSubprocess*	p	=	[[self alloc] init];
 		p->_subproc_pid		=	pid;
+		p->_subproc_stdin	=	stdin_pipe_writing_handle;
+		p->_subproc_stdout	=	stdout_pipe_reading_handle;
+		p->_subproc_stderr	=	stderr_pipe_reading_handle;
 		return		p;
 	}
 	else {
