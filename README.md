@@ -1,3 +1,12 @@
+
+
+
+ARCHIVED BECAUSE THE SOURCE PROBLEM HAS BEEN DISAPPEARED
+
+The problem related to Rust execution was not a problem of `NSTask`. It was because of `LD_LIBRARY_PATH` that was 
+set by Xcode 7. So this project will be archived until another issue arises.
+
+
 DarwinWrapper
 Hoon H.
 
