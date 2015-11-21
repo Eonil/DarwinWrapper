@@ -13,10 +13,9 @@
  This class just replaces `NSTask` to avoid the issue by wrapping `posix_spawn`.
  */
 @interface EEDWSubprocess : NSObject
-+ (instancetype)spawnWithExecutablePath:(NSString*)executablePath arguments:(NSArray<NSString*>*)arguments environment:(NSArray<NSString*>*)environment error:(NSError**)error;
-//- (instancetype)initWithExecutablePath:(NSString*)executablePath arguments:(NSArray<NSString*>*)arguments;
-- (NSFileHandle*)standardInput;
-- (NSFileHandle*)standardOutput;
-- (NSFileHandle*)standardError;
-- (BOOL)waitUntilExitWithError:(NSError**)error;
++ (instancetype _Nullable)spawnWithExecutablePath:(NSString* _Nonnull)executablePath arguments:(NSArray<NSString*>* _Nonnull)arguments error:(NSError* _Nullable* _Nullable)error;
+- (NSFileHandle* _Nonnull)standardInput;
+- (NSFileHandle* _Nonnull)standardOutput;
+- (NSFileHandle* _Nonnull)standardError;
+- (BOOL)waitUntilExitWithError:(NSError* _Nullable* _Nullable)error;
 @end
